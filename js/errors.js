@@ -81,4 +81,5 @@ var ValidationErrorCodes;
     ValidationErrorCodes[(ValidationErrorCodes['ValueOutOfRange'] = 1004)] = 'ValueOutOfRange';
     ValidationErrorCodes[(ValidationErrorCodes['InvalidSignatureOrHash'] = 1005)] = 'InvalidSignatureOrHash';
     ValidationErrorCodes[(ValidationErrorCodes['UnsupportedOption'] = 1006)] = 'UnsupportedOption';
+    ValidationErrorCodes[(ValidationErrorCodes['InvalidOrder'] = 1007)] = 'InvalidOrder';
 })((ValidationErrorCodes = exports.ValidationErrorCodes || (exports.ValidationErrorCodes = {})));

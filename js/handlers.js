@@ -25,45 +25,15 @@ const parsePaginationConfig = req => {
     }
     return { page, perPage };
 };
-exports.handlers = {
-    assetPairsAsync: async (req, res) => {
-        utils_1.utils.validateSchema(req.query, json_schemas_1.schemas.assetPairsRequestOptsSchema);
-        const { page, perPage } = parsePaginationConfig(req);
-        const assetPairs = await orderbook_1.orderBook.getAssetPairsAsync(
-            page,
-            perPage,
-            req.query.assetDataA,
-            req.query.assetDataB,
-        );
-        res.status(HttpStatus.OK).send(assetPairs);
-    },
-    ordersAsync: async (req, res) => {
-        utils_1.utils.validateSchema(req.query, json_schemas_1.schemas.ordersRequestOptsSchema);
-        const { page, perPage } = parsePaginationConfig(req);
-        const paginatedOrders = await orderbook_1.orderBook.getOrdersAsync(page, perPage, req.query);
-        res.status(HttpStatus.OK).send(paginatedOrders);
-    },
-    feeRecipients: (req, res) => {
+class Handlers {
+    static feeRecipients(req, res) {
         const { page, perPage } = parsePaginationConfig(req);
         const normalizedFeeRecipient = config_1.FEE_RECIPIENT.toLowerCase();
         const feeRecipients = [normalizedFeeRecipient];
         const paginatedFeeRecipients = paginator_1.paginate(feeRecipients, page, perPage);
         res.status(HttpStatus.OK).send(paginatedFeeRecipients);
-    },
-    orderbookAsync: async (req, res) => {
-        utils_1.utils.validateSchema(req.query, json_schemas_1.schemas.orderBookRequestSchema);
-        const { page, perPage } = parsePaginationConfig(req);
-        const baseAssetData = req.query.baseAssetData;
-        const quoteAssetData = req.query.quoteAssetData;
-        const orderbookResponse = await orderbook_1.orderBook.getOrderBookAsync(
-            page,
-            perPage,
-            baseAssetData,
-            quoteAssetData,
-        );
-        res.status(HttpStatus.OK).send(orderbookResponse);
-    },
-    orderConfig: (req, res) => {
+    }
+    static orderConfig(req, res) {
         utils_1.utils.validateSchema(req.body, json_schemas_1.schemas.orderConfigRequestSchema);
         const normalizedFeeRecipient = config_1.FEE_RECIPIENT.toLowerCase();
         const orderConfigResponse = {
@@ -79,8 +49,47 @@ exports.handlers = {
             ).toString(),
         };
         res.status(HttpStatus.OK).send(orderConfigResponse);
-    },
-    postOrderAsync: async (req, res) => {
+    }
+    static async assetPairsAsync(req, res) {
+        utils_1.utils.validateSchema(req.query, json_schemas_1.schemas.assetPairsRequestOptsSchema);
+        const { page, perPage } = parsePaginationConfig(req);
+        const assetPairs = await orderbook_1.OrderBook.getAssetPairsAsync(
+            page,
+            perPage,
+            req.query.assetDataA,
+            req.query.assetDataB,
+        );
+        res.status(HttpStatus.OK).send(assetPairs);
+    }
+    static async getOrderByHashAsync(req, res) {
+        const orderIfExists = await orderbook_1.OrderBook.getOrderByHashIfExistsAsync(req.params.orderHash);
+        if (_.isUndefined(orderIfExists)) {
+            throw new errors_1.NotFoundError();
+        } else {
+            res.status(HttpStatus.OK).send(orderIfExists);
+        }
+    }
+    constructor() {
+        this._orderBook = new orderbook_1.OrderBook();
+    }
+    async initOrderBookAsync() {
+        await this._orderBook.addExistingOrdersToOrderWatcherAsync();
+    }
+    async ordersAsync(req, res) {
+        utils_1.utils.validateSchema(req.query, json_schemas_1.schemas.ordersRequestOptsSchema);
+        const { page, perPage } = parsePaginationConfig(req);
+        const paginatedOrders = await this._orderBook.getOrdersAsync(page, perPage, req.query);
+        res.status(HttpStatus.OK).send(paginatedOrders);
+    }
+    async orderbookAsync(req, res) {
+        utils_1.utils.validateSchema(req.query, json_schemas_1.schemas.orderBookRequestSchema);
+        const { page, perPage } = parsePaginationConfig(req);
+        const baseAssetData = req.query.baseAssetData;
+        const quoteAssetData = req.query.quoteAssetData;
+        const orderbookResponse = await this._orderBook.getOrderBookAsync(page, perPage, baseAssetData, quoteAssetData);
+        res.status(HttpStatus.OK).send(orderbookResponse);
+    }
+    async postOrderAsync(req, res) {
         utils_1.utils.validateSchema(req.body, json_schemas_1.schemas.signedOrderSchema);
         const signedOrder = unmarshallOrder(req.body);
         if (config_1.WHITELISTED_TOKENS !== '*') {
@@ -88,18 +97,21 @@ exports.handlers = {
             validateAssetDataIsWhitelistedOrThrow(allowedTokens, signedOrder.makerAssetData, 'makerAssetData');
             validateAssetDataIsWhitelistedOrThrow(allowedTokens, signedOrder.takerAssetData, 'takerAssetData');
         }
-        await orderbook_1.orderBook.addOrderAsync(signedOrder);
-        res.status(HttpStatus.OK).send();
-    },
-    getOrderByHashAsync: async (req, res) => {
-        const orderIfExists = await orderbook_1.orderBook.getOrderByHashIfExistsAsync(req.params.orderHash);
-        if (_.isUndefined(orderIfExists)) {
-            throw new errors_1.NotFoundError();
-        } else {
-            res.status(HttpStatus.OK).send(orderIfExists);
+        try {
+            await this._orderBook.addOrderAsync(signedOrder);
+        } catch (err) {
+            throw new errors_1.ValidationError([
+                {
+                    field: 'signedOrder',
+                    code: errors_1.ValidationErrorCodes.InvalidOrder,
+                    reason: err.message,
+                },
+            ]);
         }
-    },
-};
+        res.status(HttpStatus.OK).send();
+    }
+}
+exports.Handlers = Handlers;
 function validateAssetDataIsWhitelistedOrThrow(allowedTokens, assetData, field) {
     const decodedAssetData = _0x_js_1.assetDataUtils.decodeAssetDataOrThrow(assetData);
     if (_0x_js_1.assetDataUtils.isMultiAssetData(decodedAssetData)) {
