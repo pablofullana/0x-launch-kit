@@ -22,9 +22,9 @@ export const WHITELISTED_TOKENS: string[] | '*' = [
 ];
 
 // Network port to listen on
-export const HTTP_PORT = _.isEmpty(process.env.HTTP_PORT)
+export const HTTP_PORT = _.isEmpty(process.env.PORT)
     ? 3000
-    : assertEnvVarType('HTTP_PORT', process.env.HTTP_PORT, EnvVarType.Port);
+    : assertEnvVarType('PORT', process.env.PORT, EnvVarType.Port);
 // Default network id to use when not specified
 export const NETWORK_ID = _.isEmpty(process.env.NETWORK_ID)
     ? 42
